@@ -29,6 +29,10 @@ public class Ecape {
 	public static double entrainmentCape(double[] pressure, double[] height, double[] temperature, double[] dewpoint,
 			double[] uWind, double[] vWind, double[] stormMotion, double inflowBottom, double inflowTop,
 			double parcelOriginHeight, double cape, double lfc, double el) {
+		if (cape == 0) {
+			return 0; // saves a lot of computing time
+		}
+
 		double psi = calcPsi(el);
 		double vsr = calcVSR(height, uWind, vWind, stormMotion, inflowBottom, inflowTop);
 		double[][] hHat = calcMseHat(pressure, height, temperature, dewpoint, parcelOriginHeight);
@@ -42,11 +46,13 @@ public class Ecape {
 		double radicandPart1 = 1 + psi + ((2 * psi) / (vsr * vsr)) * ncape;
 		double radicandPart2 = ((8 * psi) / (vsr * vsr)) * (cape - psi * ncape);
 		double ecapeTerm2Numerator = Math.sqrt(Math.pow(radicandPart1, 2) + radicandPart2);
-		
-		double ecape = ecapeTerm1Numerator / ecapeTerm1And2Denominator + ecapeTerm2Numerator / ecapeTerm1And2Denominator;
+
+		double ecape = ecapeTerm1Numerator / ecapeTerm1And2Denominator
+				+ ecapeTerm2Numerator / ecapeTerm1And2Denominator;
 
 //		double ecape = (-1 - psi - ((2*psi)/(vsr*vsr))*ncape)/((4*psi)/(vsr*vsr))
-//				+ Math.pow(Math.pow(1 + psi + ((2*psi)/(vsr*vsr))*ncape + ((8*psi)/(vsr*vsr)) * (cape - psi*ncape), 2), 0.5)/((4*psi)/(vsr*vsr));
+//				+ Math.pow(Math.pow(1 + psi + ((2*psi)/(vsr*vsr))*ncape + ((8*psi)/(vsr*vsr)) * (cape - psi*ncape), 2), 0.5)/
+//				((4*psi)/(vsr*vsr));
 
 		double ecapeA = vsr * vsr / 2.0 + ecape;
 
@@ -54,14 +60,45 @@ public class Ecape {
 			ecapeA = 0;
 		}
 
-		System.out.println("psi: " + psi);
-		System.out.println("vsr: " + vsr);
-		System.out.println("cape: " + cape);
-		System.out.println("ncape: " + ncape);
-		System.out.println("ecape: " + ecape);
-		System.out.println("ecape_a: " + ecapeA);
+//		System.out.println("psi: " + psi);
+//		System.out.println("vsr: " + vsr);
+//		System.out.println("cape: " + cape);
+//		System.out.println("ncape: " + ncape);
+//		System.out.println("ecape: " + ecape);
+//		System.out.println("ecape_a: " + ecapeA);
 
 		return ecapeA;
+	}
+
+	/**
+	 * 
+	 * @param cape              Units: J kg^-1
+	 * @param ecape             Units: J kg^-1
+	 * @param vsr               Units: m s^-1
+	 * @param stormColumnHeight Units: Meters
+	 * @return <b>updraftRadius:</b> Units: Meters
+	 */
+	public static double updraftRadius(double cape, double ecape, double vsr, double stormColumnHeight) {
+		double nondimE = ecape / cape;
+		double nondimV = vsr / Math.sqrt(2 * ecape);
+
+		double nondimR = Math
+				.sqrt(((4 * sigma * sigma) / (alpha * alpha * Math.PI * Math.PI)) * ((nondimV * nondimV) / (nondimE)));
+		
+		double updraftRadius = nondimR * stormColumnHeight;
+		
+		return updraftRadius;
+	}
+	
+	/**
+	 * 
+	 * @param updraftRadius				Units: Meters
+	 * @return <b>entrainmentRate:</b>	Units: m^-1
+	 */
+	public static double entrainmentRate(double updraftRadius) {
+		double entrainmentRate = (2 * k2 * L_mix)/(Pr * updraftRadius * updraftRadius);
+		
+		return entrainmentRate;
 	}
 
 	private static final double c_p = 1005; // Units: J kg^-1
@@ -71,7 +108,7 @@ public class Ecape {
 	private static final double alpha = 0.8; // Units: dimensionless
 	private static final double k2 = 0.18; // Units: dimensionless
 	private static final double Pr = 1.0 / 3.0; // Units: dimensionless
-	private static final double L_mix = 120; // Units: Meters
+	private static final double L_mix = 120.0; // Units: Meters
 
 	/**
 	 * 
