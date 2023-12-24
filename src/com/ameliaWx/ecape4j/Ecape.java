@@ -1,11 +1,37 @@
 package com.ameliaWx.ecape4j;
 
+import java.util.ArrayList;
+
 /**
  * 
  * @author Amelia Urquhart (https://github.com/a-urq)
  *
  */
 public class Ecape {
+	public static void main(String[] args) {
+//		double testPressure = 90000;
+//		double testTemperature = 290;
+//		double testDewpoint = 290;
+//		double testHeight = 1000;
+//
+//		double specificHumidity = Ecape.specificHumidityFromDewpoint(testDewpoint, testPressure);
+//		double specificHumidity2 = Ecape.specificHumidityFromDewpoint(testDewpoint, testPressure-10000);
+//		
+//		double resultDewpoint = Ecape.dewpointFromSpecificHumidity(specificHumidity, testPressure);
+//		
+//		System.out.println(specificHumidity);
+//		System.out.println(specificHumidity2);
+//		System.out.println(resultDewpoint);
+
+//		double moistStaticEnergy = Ecape.moistStaticEnergy(testTemperature, testDewpoint, testHeight, testPressure);
+
+//		double resultTemperature = Ecape.temperatureFromMoistStaticEnergy(moistStaticEnergy, testPressure, testHeight);
+
+//		System.out.println(resultTemperature);
+		System.out.println(updraftRadius(4539, 2993, 10, 12000));
+		System.out.println(entrainmentRate(updraftRadius(1000, 800, 10, 10000)) + " m");
+	}
+
 	/**
 	 * Computes the value of Entrainment Cape as specified by John Peters et. al.
 	 * 2023 (https://arxiv.org/pdf/2301.04712.pdf).
@@ -84,21 +110,156 @@ public class Ecape {
 
 		double nondimR = Math
 				.sqrt(((4 * sigma * sigma) / (alpha * alpha * Math.PI * Math.PI)) * ((nondimV * nondimV) / (nondimE)));
-		
+
 		double updraftRadius = nondimR * stormColumnHeight;
-		
-		return updraftRadius;
+
+		return updraftRadius/2;
 	}
-	
+
 	/**
 	 * 
-	 * @param updraftRadius				Units: Meters
-	 * @return <b>entrainmentRate:</b>	Units: m^-1
+	 * @param updraftRadius Units: Meters
+	 * @return <b>entrainmentRate:</b> Units: m^-1
 	 */
 	public static double entrainmentRate(double updraftRadius) {
-		double entrainmentRate = (2 * k2 * L_mix)/(Pr * updraftRadius * updraftRadius);
+		double entrainmentRate = (2 * k2 * L_mix) / (Pr * updraftRadius * updraftRadius);
+
+//		entrainmentRate = 0.000046;
 		
 		return entrainmentRate;
+	}
+
+	private static final double ECAPE_PARCEL_DZ = 20.0; // Units: Meters
+	private static final double DRY_ADIABATIC_LAPSE_RATE = 0.0098; // Units: K m^-1
+	private static final double DEWPOINT_LAPSE_RATE = 0.0018; // Units: K m^-1
+
+	/**
+	 * 
+	 * @param pressure
+	 * @param height
+	 * @param temperature
+	 * @param dewpoint
+	 * @param uWind
+	 * @param vWind
+	 * @param parcelOrigin { pressure [Pa], height [m], temperature [K], dewpoint
+	 *                     [K] }
+	 * @param stormMotion
+	 * @param inflowBottom
+	 * @param inflowTop
+	 * @param cape
+	 * @param lfc
+	 * @param el
+	 * @return <b>ecapeParcel:</b> 2D Array of Doubles <br>
+	 *         Index 0 - Pressure [Pa] <br>
+	 *         Index 1 - Height [m] <br>
+	 *         Index 2 - Temperature [K] <br>
+	 *         Index 3 - Dewpoint [K]
+	 */
+	public static double[][] ecapeParcel(double[] pressure, double[] height, double[] temperature, double[] dewpoint,
+			double[] uWind, double[] vWind, double[] parcelOrigin, double[] stormMotion, double inflowBottom,
+			double inflowTop, double cape, double lfc, double el) {
+		double ecape = entrainmentCape(pressure, height, temperature, dewpoint, uWind, vWind, stormMotion, inflowBottom,
+				inflowTop, parcelOrigin[1], cape, lfc, el);
+		double vsr = calcVSR(height, uWind, vWind, stormMotion, inflowBottom, inflowTop);
+
+		double updraftRadius = updraftRadius(cape, ecape, vsr, el - parcelOrigin[1]);
+		double entrainmentRate = entrainmentRate(updraftRadius);
+
+		double[] moistStaticEnergy = new double[dewpoint.length];
+		for (int i = 0; i < moistStaticEnergy.length; i++) {
+			moistStaticEnergy[i] = moistStaticEnergy(temperature[i], dewpoint[i], height[i], pressure[i]);
+		}
+
+		double[] specificHumidity = new double[dewpoint.length];
+		for (int i = 0; i < specificHumidity.length; i++) {
+			double vaporPressure = Ecape.vaporPressure(dewpoint[i]);
+			specificHumidity[i] = Ecape.specificHumidity(pressure[i], vaporPressure);
+		}
+
+		ArrayList<Double> pressureList = new ArrayList<>();
+		ArrayList<Double> heightList = new ArrayList<>();
+		ArrayList<Double> temperatureList = new ArrayList<>();
+		ArrayList<Double> dewpointList = new ArrayList<>();
+		ArrayList<Double> moistStaticEnergyList = new ArrayList<>();
+
+		double parcelPressure = parcelOrigin[0];
+		double parcelHeight = parcelOrigin[1];
+		double parcelTemperature = parcelOrigin[2];
+		double parcelDewpoint = parcelOrigin[3];
+
+		double parcelMoistStaticEnergy = Ecape.moistStaticEnergy(parcelTemperature, parcelDewpoint, parcelHeight,
+				parcelPressure);
+
+		{
+			pressureList.add(parcelPressure);
+			heightList.add(parcelHeight);
+			temperatureList.add(parcelTemperature);
+			dewpointList.add(parcelDewpoint);
+			moistStaticEnergyList.add(parcelMoistStaticEnergy);
+		}
+
+		while (parcelPressure > 10000) {
+			parcelPressure = pressureAtHeight(parcelPressure, ECAPE_PARCEL_DZ, parcelTemperature);
+			parcelHeight += ECAPE_PARCEL_DZ;
+
+			if (parcelDewpoint < parcelTemperature) {
+				parcelTemperature -= DRY_ADIABATIC_LAPSE_RATE * ECAPE_PARCEL_DZ;
+				parcelDewpoint -= DEWPOINT_LAPSE_RATE * ECAPE_PARCEL_DZ;
+
+				double parcelSpecificHumidity = specificHumidityFromDewpoint(parcelDewpoint, parcelPressure);
+				double envSpecificHumidity = revLinearInterp(height, specificHumidity, parcelHeight);
+
+				parcelSpecificHumidity += -entrainmentRate * (parcelSpecificHumidity - envSpecificHumidity)
+						* ECAPE_PARCEL_DZ;
+
+				parcelDewpoint = dewpointFromSpecificHumidity(parcelSpecificHumidity, parcelPressure);
+
+				pressureList.add(parcelPressure);
+				heightList.add(parcelHeight);
+				temperatureList.add(parcelTemperature);
+				dewpointList.add(parcelDewpoint);
+
+				parcelMoistStaticEnergy = Ecape.moistStaticEnergy(parcelTemperature, parcelDewpoint, parcelHeight,
+						parcelPressure);
+				
+//				System.out.printf("%8.2f Pa\tq=%8.6f\tq0=%8.6f\tdq=%8.6f\n", parcelPressure, parcelSpecificHumidity, envSpecificHumidity, -1000*entrainmentRate * (parcelSpecificHumidity - envSpecificHumidity)*ECAPE_PARCEL_DZ);
+//				System.out.printf("%8.2f hPa\t%8.2f m\t%8.2f C\t%8.2f C\t%10.8f m\n", parcelPressure/100.0, parcelHeight, parcelTemperature - 273.15, parcelDewpoint - 273.15, updraftRadius);
+			} else {
+				double envMoistStaticEnergy = revLinearInterp(height, moistStaticEnergy, parcelHeight);
+
+				parcelMoistStaticEnergy += -entrainmentRate * (parcelMoistStaticEnergy - envMoistStaticEnergy)
+						* ECAPE_PARCEL_DZ;
+
+				double parcelTemperatureFromMSE = Ecape.temperatureFromMoistStaticEnergy(parcelMoistStaticEnergy,
+						parcelPressure, parcelHeight);
+				
+//				System.out.printf("%8.2f Pa\t%8.2f J kg^-1\t%8.2f J kg^-1\t%8.2f C\n", parcelPressure, parcelMoistStaticEnergy, envMoistStaticEnergy, parcelTemperatureFromMSE - 273.15);
+//				System.out.printf("%8.2f hPa\t%8.2f m\t%8.2f C\t%8.2f C\t%10.8f m\t%10.8f m^-1\n", parcelPressure/100.0, parcelHeight, parcelTemperature - 273.15, parcelDewpoint - 273.15, updraftRadius, entrainmentRate);
+
+				parcelTemperature = parcelTemperatureFromMSE;
+				parcelDewpoint = parcelTemperatureFromMSE;
+				
+				pressureList.add(parcelPressure);
+				heightList.add(parcelHeight);
+				temperatureList.add(parcelTemperatureFromMSE);
+				dewpointList.add(parcelTemperatureFromMSE);
+			}
+		}
+
+		// ret[0]: pressure [Pa]
+		// ret[1]: height [m]
+		// ret[2]: temperature [K]
+		// ret[3]: dewpoint [K]
+		double[][] ret = new double[4][dewpointList.size()];
+
+		for (int i = 0; i < ret[0].length; i++) {
+			ret[0][i] = pressureList.get(i);
+			ret[1][i] = heightList.get(i);
+			ret[2][i] = temperatureList.get(i);
+			ret[3][i] = dewpointList.get(i);
+		}
+
+		return ret;
 	}
 
 	private static final double c_p = 1005; // Units: J kg^-1
@@ -134,6 +295,12 @@ public class Ecape {
 	 */
 	private static double calcVSR(double[] height, double[] uWind, double[] vWind, double[] stormMotion,
 			double inflowBottom, double inflowTop) {
+		// DEFAULTS TO 0-1 KM INFLOW IF NO EIL IS FOUND
+		if(inflowTop <= inflowBottom) {
+			inflowBottom = 0;
+			inflowTop = 1000;
+		}
+		 
 		double uWindSum = 0.0;
 		double vWindSum = 0.0;
 		double weightSum = 0.0;
@@ -262,12 +429,40 @@ public class Ecape {
 		return ncape;
 	}
 
-	private static double specificHumidityFromDewpoint(double temperature, double dewpoint, double pressure) {
+	private static double specificHumidityFromDewpoint(double dewpoint, double pressure) {
 		double vaporPressure = vaporPressure(dewpoint);
 
-		double specificHumidity = specificHumidity(pressure, vaporPressure, temperature);
+		double specificHumidity = specificHumidity(pressure, vaporPressure);
 
 		return specificHumidity;
+	}
+
+	private static double dewpointFromSpecificHumidity(double specificHumidity, double pressure) {
+		double vaporPressure = vaporPressureFromSpecificHumidity(pressure, specificHumidity);
+
+		double dewpoint = dewpointFromVaporPressure(vaporPressure);
+
+		return dewpoint;
+	}
+
+	private static double vaporPressureFromSpecificHumidity(double pressure, double specificHumidity) {
+		double numerator = specificHumidity * pressure;
+		double denominatorTerm = (1 / waterVaporGasConstant + specificHumidity / dryAirGasConstant
+				- specificHumidity / waterVaporGasConstant);
+
+		double vaporPressure = numerator / (dryAirGasConstant * denominatorTerm);
+
+		return vaporPressure;
+	}
+
+	private static double dewpointFromVaporPressure(double vaporPressure) {
+		double e0 = 611; // Pascals
+		double t0 = 273.15; // Kelvins
+
+		double dewpointReciprocal = 1 / t0
+				- waterVaporGasConstant / latentHeatOfVaporization * Math.log(vaporPressure / e0);
+
+		return 1 / dewpointReciprocal;
 	}
 
 	/**
@@ -279,19 +474,19 @@ public class Ecape {
 	 * @param temperature   Units: Kelvins
 	 * @return <b>specificHumidity</b> Units: Fraction
 	 */
-	private static double specificHumidity(double pressure, double vaporPressure, double temperature) {
-		double waterVaporDensity = absoluteHumidity(vaporPressure, temperature); // kg m^-3
-		double airDensity = dryAirDensity(pressure - vaporPressure, temperature); // kg m^-3
+	private static double specificHumidity(double pressure, double vaporPressure) {
+		double waterVaporDensity = absoluteHumidity(vaporPressure, 280); // kg m^-3
+		double airDensity = dryAirDensity(pressure - vaporPressure, 280); // kg m^-3
 
 		return waterVaporDensity / (waterVaporDensity + airDensity);
 	}
 
 	/** Units: J kg^-1 K^-1 */
-	public static final double dryAirGasConstant = 287;
+	private static final double dryAirGasConstant = 287;
 	/** Units: J kg^-1 K^-1 */
-	public static final double waterVaporGasConstant = 461.5;
+	private static final double waterVaporGasConstant = 461.5;
 	/** Units: J kg^-1 */
-	public static final double latentHeatOfVaporization = 2500000;
+	private static final double latentHeatOfVaporization = 2500000;
 
 	/**
 	 * Computes the partial density of water vapor, also called absolute humidity.
@@ -333,9 +528,65 @@ public class Ecape {
 	}
 
 	private static double moistStaticEnergy(double temperature, double dewpoint, double height, double pressure) {
-		double specificHumidity = specificHumidityFromDewpoint(temperature, dewpoint, pressure);
+		double specificHumidity = specificHumidityFromDewpoint(dewpoint, pressure);
 
 		return c_p * temperature + L_vr * specificHumidity + g * height;
+	}
+
+	/**
+	 * Assumes parcel is SATURATED, decodes MSE into temperature from ECAPE parcel
+	 */
+	private static double temperatureFromMoistStaticEnergy(double mse, double p, double z) {
+		double moistNonstaticEnergy = mse - z * g;
+		double guessT = moistNonstaticEnergy / c_p;
+		double guessMSE = Ecape.moistStaticEnergy(guessT, guessT, z, p);
+
+		final double guessChangeCoef = 0.2; // lmao this is entirely arbitrary
+		while (Math.abs(mse - guessMSE) > 1) {
+			double guessDiff = mse - guessMSE;
+
+			guessT -= -guessDiff / c_p * guessChangeCoef;
+			guessMSE = Ecape.moistStaticEnergy(guessT, guessT, z, p);
+		}
+
+		return guessT;
+	}
+
+//	/**
+//	 * Computes the mixing ratio using total pressure, vapor pressure, and
+//	 * temperature.
+//	 * 
+//	 * Borrowed from WeatherUtils.
+//	 * 
+//	 * @param pressure Units: Pascals
+//	 * @param dewpoint Units: Kelvins
+//	 * @return <b>mixingRatio</b> Units: Fraction (kg kg^-1)
+//	 */
+//	private static double mixingRatio(double pressure, double dewpoint) {
+//		double vaporPressure = vaporPressure(dewpoint);
+//		double mixingRatio = 0.62197 * (vaporPressure) / (pressure - vaporPressure);
+//
+//		return mixingRatio;
+//	}
+
+	/** Units: J K^-1 mol^-1 */
+	private static final double molarGasConstant = 8.314;
+	/** Units: kg mol^-1 */
+	private static final double avgMolarMass = 0.029;
+
+	/**
+	 * Computes pressure at a given height above sea level. Uses temperature to
+	 * figure out scale height.
+	 * 
+	 * @param seaLevelPres        Units: Pascals
+	 * @param heightAboveSeaLevel Units: Meters
+	 * @param temperature         Units: Kelvins
+	 * @return <b>pressureAtHeight</b> Units: Pascals
+	 */
+	private static double pressureAtHeight(double seaLevelPres, double heightAboveSeaLevel, double temperature) {
+		double scaleHeight = (molarGasConstant * temperature) / (avgMolarMass * g); // Meters
+
+		return seaLevelPres * Math.exp(-heightAboveSeaLevel / scaleHeight);
 	}
 
 	// inputArr assumed to already be sorted and increasing
