@@ -8,29 +8,29 @@ import java.util.ArrayList;
  *
  */
 public class Ecape {
-//	public static void main(String[] args) {
-////		double testPressure = 90000;
-////		double testTemperature = 290;
-////		double testDewpoint = 290;
-////		double testHeight = 1000;
-////
-////		double specificHumidity = Ecape.specificHumidityFromDewpoint(testDewpoint, testPressure);
-////		double specificHumidity2 = Ecape.specificHumidityFromDewpoint(testDewpoint, testPressure-10000);
-////		
-////		double resultDewpoint = Ecape.dewpointFromSpecificHumidity(specificHumidity, testPressure);
-////		
-////		System.out.println(specificHumidity);
-////		System.out.println(specificHumidity2);
-////		System.out.println(resultDewpoint);
+	public static void main(String[] args) {
+//		double testPressure = 90000;
+//		double testTemperature = 290;
+//		double testDewpoint = 290;
+//		double testHeight = 1000;
 //
-////		double moistStaticEnergy = Ecape.moistStaticEnergy(testTemperature, testDewpoint, testHeight, testPressure);
-//
-////		double resultTemperature = Ecape.temperatureFromMoistStaticEnergy(moistStaticEnergy, testPressure, testHeight);
-//
-////		System.out.println(resultTemperature);
-//		System.out.println(updraftRadius(4539, 2993, 10, 12000));
-//		System.out.println(entrainmentRate(updraftRadius(1000, 800, 10, 10000)) + " m");
-//	}
+//		double specificHumidity = Ecape.specificHumidityFromDewpoint(testDewpoint, testPressure);
+//		double specificHumidity2 = Ecape.specificHumidityFromDewpoint(testDewpoint, testPressure-10000);
+//		
+//		double resultDewpoint = Ecape.dewpointFromSpecificHumidity(specificHumidity, testPressure);
+//		
+//		System.out.println(specificHumidity);
+//		System.out.println(specificHumidity2);
+//		System.out.println(resultDewpoint);
+
+//		double moistStaticEnergy = Ecape.moistStaticEnergy(testTemperature, testDewpoint, testHeight, testPressure);
+
+//		double resultTemperature = Ecape.temperatureFromMoistStaticEnergy(moistStaticEnergy, testPressure, testHeight);
+
+//		System.out.println(resultTemperature);
+		System.out.println(updraftRadius(4233.88, 3911.55, 18.17, 12500));
+		System.out.println(entrainmentRate(updraftRadius(4233.88, 3911.55, 18.17, 12500)) + " m");
+	}
 
 	/**
 	 * Computes the value of Entrainment Cape as specified by John Peters et. al.
@@ -123,7 +123,7 @@ public class Ecape {
 	 */
 	public static double entrainmentRate(double updraftRadius) {
 		double entrainmentRate = (2 * k2 * L_mix) / (Pr * updraftRadius * updraftRadius);
-
+		
 //		entrainmentRate = 0.000046;
 		
 		return entrainmentRate;
@@ -198,7 +198,7 @@ public class Ecape {
 			moistStaticEnergyList.add(parcelMoistStaticEnergy);
 		}
 
-		while (parcelPressure > 10000) {
+		while (parcelPressure > pressure[0] && ecape > 0) {
 			parcelPressure = pressureAtHeight(parcelPressure, ECAPE_PARCEL_DZ, parcelTemperature);
 			parcelHeight += ECAPE_PARCEL_DZ;
 
