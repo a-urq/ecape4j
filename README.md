@@ -1,6 +1,8 @@
 # ecape4j
 A simple Java library that computes ECAPE values and parcel paths.
 
+!! This code has not yet been run through any verification datasets. I am currently working with the author of the paper to verify that this works properly. !!
+
 # Notice to Developers
 Using this library on its own is quite boilerplate heavy and may be unwieldy. As of the time of writing, I am working on including this library in <a href="https://github.com/a-urq/weather-utils-java">WeatherUtils</a>. The WeatherUtils ECAPE parcel method will also use this code, but will take care of the boilerplate on its own. I have decided to also upload this library on its own in case developers wish to use their own CAPE values, LFCs, ELs, storm motions, etc.
 
