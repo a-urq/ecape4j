@@ -1,10 +1,8 @@
 # ecape4j
 A simple Java library that computes ECAPE values and parcel paths.
 
-!! This code has not yet been run through any verification datasets. I am currently working with the author of the paper to verify that this works properly. !!
-
 # Notice to Developers
-Using this library on its own is quite boilerplate heavy and may be unwieldy. As of the time of writing, I am working on including this library in <a href="https://github.com/a-urq/weather-utils-java">WeatherUtils</a>. The WeatherUtils ECAPE parcel method will also use this code, but will take care of the boilerplate on its own. I have decided to also upload this library on its own in case developers wish to use their own CAPE values, LFCs, ELs, storm motions, etc.
+Using this library on its own is quite boilerplate heavy and may be unwieldy. The <a href="https://github.com/a-urq/weather-utils-java">WeatherUtils</a> ECAPE parcel method also uses this code, but will take care of the boilerplate on its own. I have decided to also upload this library on its own in case developers wish to use their own CAPE values, LFCs, ELs, storm motions, etc.
 
 # Instructions for use
 This library expects you to have already calculated a parcel origin state, storm motion vector, CAPE value, LFC height, and EL height. This is to allow for the user to supply their own values if they wish. To calculate these values, you may be interested in my other library <a href="https://github.com/a-urq/weather-utils-java">WeatherUtils</a>. 
@@ -60,14 +58,20 @@ default:
 double inflowBottom = 0; // Units: Meters
 double inflowTop = 1000; // Units: Meters
 
-double[][] ecapeParcelPathRaw = Ecape.ecapeParcel(pressure, height, temperature, dewpoint, uWind, vWind, parcelOrigin, stormMotion, inflowBottom, inflowTop, cape, lfc, el);
+boolean entrainmentSwitch = true;
+boolean pseudoadiabaticSwitch = false;
+
+double[][] ecapeParcelPathRaw = Ecape.ecapeParcel(pressure, height, temperature, dewpoint, uWind, vWind, entrainmentSwitch, pseudoadiabaticSwitch, parcelOrigin, stormMotion, inflowBottom, inflowTop, cape, lfc, el);
 ```
 
-The value returned from `Ecape.ecapeParcel` is a two-dimensional array of doubles. Each element of the array is a list of pressures, heights, temperatures, or dewpoints. The following code snippet demonstrates how you might extract these lists.
+The value returned from `Ecape.ecapeParcel` is a two-dimensional array of doubles. Each element of the array is a list of pressures, heights, temperatures, water vapor mass fractions, or total water mass fractions. The following code snippet demonstrates how you might extract these lists. It is highly recommended that you compute density temperature for plotting.
 
 ```java
-ecapeParcelPressure = ecapeParcelPathRaw[0]; // Units: Pascals
-ecapeParcelHeight = ecapeParcelPathRaw[1]; // Units: Meters
-ecapeParcelTemperature = ecapeParcelPathRaw[2]; // Units: Kelvins
-ecapeParcelDewpoint = ecapeParcelPathRaw[3]; // Units: Kelvins
+double[] ecapeParcelPressure = ecapeParcelPathRaw[0]; // Units: Pascals
+double[] ecapeParcelHeight = ecapeParcelPathRaw[1]; // Units: Meters
+double[] ecapeParcelTemperature = ecapeParcelPathRaw[2]; // Units: Kelvins
+double[] ecapeParcelQv = ecapeParcelPathRaw[3]; // Units: kg/kg
+double[] ecapeParcelQt = ecapeParcelPathRaw[4]; // Units: kg/kg
+
+double[] ecapeParcelDensityTemperature = Ecape.densityTemperature(ecapeParcelTemperature, ecapeParcelQv, ecapeParcelQt);
 ```
