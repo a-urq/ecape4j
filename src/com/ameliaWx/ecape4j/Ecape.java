@@ -24,7 +24,7 @@ public class Ecape {
 	private static final double T_trip = 273.15; // Units: J kg^-1
 
 	private static final double g = 9.81; // Units: m s^-2
-	private static final double sigma = 1.6; // Units: dimensionless
+	private static final double sigma = 1.1; // Units: dimensionless
 	private static final double alpha = 0.8; // Units: dimensionless
 	private static final double k2 = 0.18; // Units: dimensionless
 	private static final double Pr = 1.0 / 3.0; // Units: dimensionless
@@ -37,11 +37,11 @@ public class Ecape {
 		double testHeight = 1000;
 
 		double specificHumidity = Ecape.specificHumidityFromDewpoint(testDewpoint, testPressure);
-		double specificHumidity2 = Ecape.specificHumidityFromDewpoint(testDewpoint, testPressure - 10000);
+		double specificHumidity2 = Ecape.specificHumidityFromDewpoint(305, 100000);
 
 		double resultDewpoint = Ecape.dewpointFromSpecificHumidity(specificHumidity, testPressure);
 		
-		System.out.println("saturatedAdiabaticLapseRate: " + saturatedAdiabaticLapseRate(268, 0.03, 45000, 258, 0.001, 0.00001, 0, -1024));
+		System.out.println("saturatedAdiabaticLapseRate: " + saturatedAdiabaticLapseRate(238, 0.005, 35000, 233, 0.0001, 0, 0, -1024));
 
 //		System.out.println(specificHumidity);
 //		System.out.println(specificHumidity2);
@@ -335,10 +335,18 @@ public class Ecape {
 //			System.out.println(Arrays.toString(ecapeNcape));
 
 			entrainmentRate = entrainmentRate(cape, ecapeNcape[0], ecapeNcape[1], vsr, el - parcelOrigin[1]);
+
+//			System.out.println("Entrainment rate - CAPE: " + cape);
+//			System.out.println("Entrainment rate - ECAPE: " + ecapeNcape[0]);
+//			System.out.println("Entrainment rate - NCAPE: " + ecapeNcape[1]);
+//			System.out.println("Entrainment rate - VSR: " + vsr);
+//			System.out.println("Entrainment rate - COLUMN: " + (el - parcelOrigin[1]));
+//			System.out.println("Entrainment rate: " + (entrainmentRate));
+//			System.out.println("Updraft radius: " + updraftRadius(entrainmentRate));
 		}
 		
 		double parcelPressure = parcelOrigin[0];
-		double parcelHeight = parcelOrigin[1];
+		double parcelHeight = logInterp(pressure, height, parcelPressure);
 		double parcelTemperature = parcelOrigin[2];
 		double parcelQv = specificHumidityFromDewpoint(parcelOrigin[3], parcelPressure);
 		double parcelQt = parcelQv;
@@ -371,7 +379,7 @@ public class Ecape {
 		double dqtDz = 0;
 		
 		while(parcelPressure > pressure[0] && parcelPressure >= 10000) {
-			double envTemperature = revLinearInterp(height, temperature, parcelHeight);
+			double envTemperature = revLinearInterp(height, temperature, parcelHeight + parcelOrigin[1]);
 			
 			double parcelSaturationQv = (1 - parcelQt) * rSat(parcelTemperature, parcelPressure, 1);
 			
@@ -503,7 +511,7 @@ public class Ecape {
 		}
 		
 		if(lfc == -1024) {
-			lfc = zParcel[zParcel.length - 1];
+			lfc = zParcel[0];
 		}
 		
 		return new double[] {integratedPositiveBuoyancy, lfc, el};
@@ -970,6 +978,8 @@ public class Ecape {
 
 			ret[0][i] = parcelOriginHeight + i * MSEHAT_DZ;
 			ret[1][i] = mseRunningAvg;
+			
+//			System.out.printf("%5.0f m\t%f.0 J/kg\t%f.0 J/kg\n", ret[0][i], ret[1][i], mseAtZ);
 		}
 
 		return ret;
@@ -998,6 +1008,9 @@ public class Ecape {
 		}
 
 		double ncape = 0.0;
+		
+//		System.out.println("NCAPE-LFC: " + lfc + " m");
+//		System.out.println("NCAPE-EL: " + el + " m");
 
 		for (double z = lfc; z < el; z += NCAPE_DZ) {
 			double hHatAtZ = linearInterp(hHat[0], hHat[1], z);
@@ -1008,7 +1021,11 @@ public class Ecape {
 			double integrand = -g / (c_pd * temperatureAtZ) * (hHatAtZ - hStarAtZ);
 
 			ncape += integrand * NCAPE_DZ;
+			
+//			if(z % 500 == 0) System.out.printf("%5.0f m\t%f5.1 K\t%f.0 J/kg\t%f.0 J/kg\t%f.0 J/kg\t%f.0 J/kg\n", z, temperatureAtZ, hHatAtZ, hStarAtZ, integrand, ncape);
 		}
+		
+//		System.out.println("Final NCAPE: " + ncape + " J/kg");
 
 		return ncape;
 	}
@@ -1237,6 +1254,44 @@ public class Ecape {
 
 					double weight1 = (input2 - input) / (input2 - input1);
 					double weight2 = (input - input1) / (input2 - input1);
+
+					return output1 * weight1 + output2 * weight2;
+				} else {
+					continue;
+				}
+			}
+
+			return -1024.0;
+		}
+	}
+
+	// inputArr assumed to already be sorted and increasing
+	private static double logInterp(double[] inputArr, double[] outputArr, double input) {
+		if (input < inputArr[0]) {
+			return outputArr[0];
+		} else if (input >= inputArr[inputArr.length - 1]) {
+			return outputArr[outputArr.length - 1];
+		} else {
+			for (int i = 0; i < inputArr.length - 1; i++) {
+				if (i + 1 == outputArr.length) {
+					return outputArr[outputArr.length - 1];
+				}
+
+				double input1 = inputArr[i];
+				double input2 = inputArr[i + 1];
+
+				if (input == input1) {
+					return outputArr[i];
+				} else if (input < input2) {
+					double logInput1 = Math.log(input1);
+					double logInput2 = Math.log(input2);
+					double logInput = Math.log(input);
+
+					double output1 = outputArr[i];
+					double output2 = outputArr[i + 1];
+
+					double weight1 = (logInput2 - logInput) / (logInput2 - logInput1);
+					double weight2 = (logInput - logInput1) / (logInput2 - logInput1);
 
 					return output1 * weight1 + output2 * weight2;
 				} else {
