@@ -68,7 +68,7 @@ boolean pseudoadiabaticSwitch = false;
 double[][] ecapeParcelPathRaw = Ecape.ecapeParcel(pressure, height, temperature, dewpoint, uWind, vWind, entrainmentSwitch, pseudoadiabaticSwitch, parcelOrigin, stormMotion, inflowBottom, inflowTop, cape, lfc, el);
 ```
 
-The value returned from `Ecape.ecapeParcel` is a two-dimensional array of doubles. Each element of the array is a list of pressures, heights, temperatures, water vapor mass fractions, or total water mass fractions. The following code snippet demonstrates how you might extract these lists. It is highly recommended that the user compute density temperature for plotting.
+The value returned from `Ecape.ecapeParcel` is a two-dimensional array of doubles. Each element of the array is a list of pressures, heights, temperatures, water vapor mass fractions, or total water mass fractions. The following code snippet demonstrates how the user might extract these lists. It is highly recommended that the user compute density temperature for plotting.
 
 ```java
 double[] ecapeParcelPressure = ecapeParcelPathRaw[0]; // Units: Pascals
